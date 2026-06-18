@@ -15,7 +15,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .bias import group_gap, verbosity_bias
+from .bias import group_gap, position_bias, verbosity_bias
 from .invariance import measurement_invariance
 from .reliability import weighted_kappa
 from .report import AuditReport
@@ -29,6 +29,7 @@ DEFAULTS = {
     "verbosity_abs_max": 0.15,
     "group_gap_max": 0.10,
     "dif_delta_r2_flag": 0.035,
+    "position_first_wins_tol": 0.05,
 }
 
 
@@ -37,7 +38,8 @@ def _consensus(df, cols):
 
 
 def audit(df: pd.DataFrame, *, judge_cols, human_cols=None, truth_col=None,
-          group_col=None, length_col=None, score_range=(1, 5), thresholds=None) -> AuditReport:
+          group_col=None, length_col=None, position_first1=None, position_first2=None,
+          score_range=(1, 5), thresholds=None) -> AuditReport:
     """Run the psychometric battery on an evaluation table.
 
     judge_cols   one or more columns of the judge's scores. Two or more enables a
@@ -47,6 +49,11 @@ def audit(df: pd.DataFrame, *, judge_cols, human_cols=None, truth_col=None,
     truth_col    optional known/target quality; needed for verbosity and group checks.
     group_col    optional group flag for the invariance check.
     length_col   optional answer length for the verbosity check.
+    position_first1, position_first2
+                 optional paired-comparison data for the position-bias check: two
+                 0/1 array-likes recording whether the judge picked the answer shown
+                 FIRST, with the two answers presented in one order and then swapped.
+                 Pass both to enable the check.
     """
     t = {**DEFAULTS, **(thresholds or {})}
     k = score_range[1] - score_range[0] + 1
@@ -82,5 +89,13 @@ def audit(df: pd.DataFrame, *, judge_cols, human_cols=None, truth_col=None,
                 "score shift %+.2f at equal quality" % u["max_shift"])
         rep.add("non-uniform DIF (R2 gain)", nu["delta_r2"], inv["flag_non_uniform"],
                 "quality-tracking differs across groups")
+
+    # 5. position bias (order effect) from paired comparisons scored both ways
+    if position_first1 is not None and position_first2 is not None:
+        pb = position_bias(position_first1, position_first2)
+        fw = pb["first_shown_wins"]
+        rep.add("position bias (first-shown wins)", fw,
+                abs(fw - 0.5) > t["position_first_wins_tol"],
+                "win rate for the answer shown first (0.5 = fair)")
 
     return rep
