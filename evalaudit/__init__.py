@@ -16,10 +16,11 @@ import numpy as np
 import pandas as pd
 
 from .bias import group_gap, verbosity_bias
+from .invariance import measurement_invariance
 from .reliability import weighted_kappa
 from .report import AuditReport
 
-__all__ = ["audit", "AuditReport"]
+__all__ = ["audit", "AuditReport", "measurement_invariance"]
 
 # Default thresholds for flagging a concern. Override via the `thresholds` arg.
 DEFAULTS = {
@@ -27,6 +28,7 @@ DEFAULTS = {
     "agreement_min": 0.60,
     "verbosity_abs_max": 0.15,
     "group_gap_max": 0.10,
+    "dif_delta_r2_flag": 0.035,
 }
 
 
@@ -71,10 +73,14 @@ def audit(df: pd.DataFrame, *, judge_cols, human_cols=None, truth_col=None,
         rep.add("verbosity bias (partial r)", vb, abs(vb) > t["verbosity_abs_max"],
                 "score ~ length | true quality")
 
-    # 4. group invariance
+    # 4. measurement invariance across groups (uniform + non-uniform DIF)
     if group_col is not None and truth_col is not None:
-        gg = group_gap(judge, df[truth_col], df[group_col])
-        rep.add("group gap", gg["gap"], gg["gap"] > t["group_gap_max"],
-                "score offset at equal quality")
+        inv = measurement_invariance(judge, df[truth_col], df[group_col],
+                                     delta_r2_flag=t["dif_delta_r2_flag"])
+        u, nu = inv["uniform"], inv["non_uniform"]
+        rep.add("uniform DIF (R2 gain)", u["delta_r2"], inv["flag_uniform"],
+                "score shift %+.2f at equal quality" % u["max_shift"])
+        rep.add("non-uniform DIF (R2 gain)", nu["delta_r2"], inv["flag_non_uniform"],
+                "quality-tracking differs across groups")
 
     return rep
