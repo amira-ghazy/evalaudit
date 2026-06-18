@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "evalaudit"
-version = "0.1.0"
-description = "Psychometric audits for LLM and human evaluation data: reliability, agreement, and bias in one call."
+version = "0.2.0"
+description = "Psychometric audits for LLM and human evaluation data: reliability, agreement, bias, and measurement invariance in one call."
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
