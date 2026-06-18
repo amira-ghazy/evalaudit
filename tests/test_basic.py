@@ -2,7 +2,7 @@
 import numpy as np
 import pandas as pd
 
-from evalaudit import audit
+from evalaudit import audit, measurement_invariance
 from evalaudit.reliability import weighted_kappa
 
 
@@ -39,8 +39,32 @@ def test_biased_judge_flags():
     assert not rep.passed
 
 
+def test_invariance_clean_judge_no_dif():
+    rng = np.random.default_rng(1)
+    n = 500
+    q = rng.integers(1, 6, n)
+    g = rng.choice(["A", "B"], n)
+    s = np.clip(np.round(q + rng.normal(0, 0.4, n)), 1, 5)
+    inv = measurement_invariance(s, q, g)
+    assert not inv["flag_uniform"] and not inv["flag_non_uniform"]
+
+
+def test_invariance_catches_uniform_and_nonuniform():
+    rng = np.random.default_rng(2)
+    n = 600
+    q = rng.integers(1, 6, n)
+    g = rng.choice(["A", "B"], n)
+    clamp = lambda a: np.clip(np.round(a), 1, 5)
+    uniform = clamp(q - 0.7 * (g == "B") + rng.normal(0, 0.4, n))
+    assert measurement_invariance(uniform, q, g)["flag_uniform"]
+    nonuniform = clamp(np.where(g == "B", 3 + 0.5 * (q - 3), q) + rng.normal(0, 0.4, n))
+    assert measurement_invariance(nonuniform, q, g)["flag_non_uniform"]
+
+
 if __name__ == "__main__":
     test_weighted_kappa_identical_is_one()
     test_clean_judge_passes()
     test_biased_judge_flags()
+    test_invariance_clean_judge_no_dif()
+    test_invariance_catches_uniform_and_nonuniform()
     print("all tests passed")
